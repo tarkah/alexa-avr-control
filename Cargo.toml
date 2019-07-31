@@ -1,0 +1,11 @@
+[package]
+name = "rustyassistant"
+version = "0.1.0"
+authors = ["Cory Forsstrom <cforsstrom18@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+alexa_sdk = "0.1"
+actix-web = "1.0"
+env_logger = "0.6"
+failure = "0.1"
