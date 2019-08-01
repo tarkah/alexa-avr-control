@@ -1,8 +1,9 @@
 [package]
-name = "rustyassistant"
+name = "alexa-avr-control"
 version = "0.1.0"
 authors = ["Cory Forsstrom <cforsstrom18@gmail.com>"]
 edition = "2018"
+description = "A self hosted Alexa skill to control a network-enabled Pioneer AVR through telnet commands."
 
 [dependencies]
 alexa_sdk = { path="../alexa_rust" }

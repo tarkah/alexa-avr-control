@@ -6,6 +6,6 @@ mod skill;
 mod speech;
 
 fn main() {
-    env_logger::from_env(Env::default().default_filter_or("rustyassistant=info")).init();
+    env_logger::from_env(Env::default().default_filter_or("alexa_avr_control=info")).init();
     site::run().unwrap();
 }
