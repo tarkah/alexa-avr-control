@@ -1,5 +1,6 @@
 use env_logger::Env;
 
+mod avr;
 mod site;
 mod skill;
 mod speech;

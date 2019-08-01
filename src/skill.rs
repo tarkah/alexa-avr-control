@@ -1,3 +1,4 @@
+use crate::avr;
 use crate::speech;
 use alexa_sdk::{
     request::{IntentType, ReqType},
@@ -55,11 +56,6 @@ fn process_intent(request: Request) -> Response {
     let intent = request.intent();
     info!("Intent: {:?}", intent);
 
-    if request.is_new() && intent == IntentType::None {
-        info!("New request without intent, standby...");
-        return Response::new(false);
-    }
-
     let response_result = match intent {
         IntentType::User(s) => process_user_intent(s, request),
         _ => Ok(silently_end()),
@@ -94,7 +90,7 @@ fn volume(slot_value: Option<String>) -> Result<Response, Error> {
     let value = validate_volume_value(value)?;
     info!("Got valid volume value: {}", value);
 
-    change_volume(value)?;
+    avr::change_volume(value)?;
     info!("Volume successfully changed");
 
     Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
@@ -118,7 +114,7 @@ fn input(slot_value: Option<String>) -> Result<Response, Error> {
     let value = validate_input_value(value)?;
     info!("Got valid input value: {}", value);
 
-    change_input(value)?;
+    avr::change_input(value)?;
     info!("Input successfully changed");
 
     Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
@@ -137,20 +133,6 @@ fn validate_input_value(value: String) -> Result<u8, Error> {
 
 fn silently_end() -> Response {
     Response::end()
-}
-
-fn change_volume(value: u8) -> Result<(), Error> {
-    if value == 10 {
-        return Err(format_err!("Test error on modifying volume"));
-    }
-    Ok(())
-}
-
-fn change_input(value: u8) -> Result<(), Error> {
-    if value == 4 {
-        return Err(format_err!("Test error on modifying input"));
-    }
-    Ok(())
 }
 
 fn log_error(e: Error) {
