@@ -4,7 +4,7 @@ use alexa_sdk::{
     request::{IntentType, ReqType},
     Request, Response,
 };
-use failure::{format_err, Error, ResultExt};
+use failure::{bail, format_err, Error, ResultExt};
 use log::{error, info};
 
 enum UserIntent {
@@ -78,6 +78,10 @@ fn process_user_intent(mut s: String, request: Request) -> Result<Response, Erro
     match user_intent {
         UserIntent::Volume => volume(maybe_slot_value),
         UserIntent::Input => input(maybe_slot_value),
+        UserIntent::Mute => mute(),
+        UserIntent::Unmute => unmute(),
+        UserIntent::On => on(),
+        UserIntent::Off => off(),
         _ => Ok(silently_end()),
     }
 }
@@ -90,7 +94,7 @@ fn volume(slot_value: Option<String>) -> Result<Response, Error> {
     let value = validate_volume_value(value)?;
     info!("Got valid volume value: {}", value);
 
-    avr::change_volume(value)?;
+    avr::process_volume(value)?;
     info!("Volume successfully changed");
 
     Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
@@ -102,7 +106,7 @@ fn validate_volume_value(value: String) -> Result<u8, Error> {
         .context(format_err!("Volume value provided not a valid u8"))?;
 
     if int == 0 || int > 10 {
-        return Err(format_err!("Volume value not between 1 and 10"));
+        bail!("Volume value not between 1 and 10")
     }
     Ok(int)
 }
@@ -114,7 +118,7 @@ fn input(slot_value: Option<String>) -> Result<Response, Error> {
     let value = validate_input_value(value)?;
     info!("Got valid input value: {}", value);
 
-    avr::change_input(value)?;
+    avr::process_input(value)?;
     info!("Input successfully changed");
 
     Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
@@ -126,9 +130,37 @@ fn validate_input_value(value: String) -> Result<u8, Error> {
         .context(format_err!("Input value provided not a valid u8"))?;
 
     if int == 0 || int > 4 {
-        return Err(format_err!("Input value not between 1 and 4"));
+        bail!("Input value not between 1 and 4")
     }
     Ok(int)
+}
+
+fn mute() -> Result<Response, Error> {
+    avr::process_mute()?;
+
+    info!("AVR successfully muted");
+    Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
+}
+
+fn unmute() -> Result<Response, Error> {
+    avr::process_unmute()?;
+
+    info!("AVR successfully unmuted");
+    Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
+}
+
+fn on() -> Result<Response, Error> {
+    avr::process_on()?;
+
+    info!("AVR successfully powered on");
+    Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
+}
+
+fn off() -> Result<Response, Error> {
+    avr::process_off()?;
+
+    info!("AVR successfully powered off");
+    Ok(alexa_sdk::Response::new(true).speech(speech::ok()))
 }
 
 fn silently_end() -> Response {
