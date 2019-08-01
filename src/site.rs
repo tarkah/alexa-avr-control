@@ -1,6 +1,6 @@
+use crate::skill::process_request;
 use actix_web::{guard, middleware, web, App, HttpResponse, HttpServer};
 use alexa_sdk::Request;
-use assistant::skill::process_request;
 use log::{debug, info};
 
 fn index(item: web::Json<Request>) -> HttpResponse {

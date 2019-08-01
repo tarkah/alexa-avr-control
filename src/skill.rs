@@ -1,8 +1,8 @@
+use crate::speech;
 use alexa_sdk::{
     request::{IntentType, ReqType},
     Request, Response,
 };
-use assistant::speech;
 use failure::{format_err, Error, ResultExt};
 use log::{error, info};
 

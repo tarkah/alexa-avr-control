@@ -1,5 +1,3 @@
-extern crate self as assistant;
-
 use env_logger::Env;
 
 mod site;
@@ -8,5 +6,5 @@ mod speech;
 
 fn main() {
     env_logger::from_env(Env::default().default_filter_or("rustyassistant=info")).init();
-    assistant::site::run().unwrap();
+    site::run().unwrap();
 }
