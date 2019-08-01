@@ -1,29 +1,20 @@
 use actix_web::{guard, middleware, web, App, HttpResponse, HttpServer};
-use alexa_sdk::{Request, Response};
+use alexa_sdk::Request;
+use assistant::skill::process_request;
+use log::{debug, info};
 
-fn index(item: web::Json<Request>, req: web::HttpRequest) -> HttpResponse {
-    println!("request: {:#?}", &item.0);
-    println!("intent: {:#?}", &item.intent());
-    println!("slot: {:#?}", &item.slot_value("Number"));
+fn index(item: web::Json<Request>) -> HttpResponse {
+    info!("Request received...");
+    debug!("{:?}", item.0);
+    let response = process_request(item.into_inner());
+    info!("Sending back response...");
+    debug!("{:?}", response);
 
-    println!("{:#?}", req.headers());
-    if item.intent() == alexa_sdk::request::IntentType::Help {
-        return HttpResponse::Ok().json(Response::new(false).speech(
-            alexa_sdk::response::Speech::ssml(
-                "<speak><say-as interpret-as=\"interjection\">okey dokey</say-as>.</speak>",
-            ),
-        ));
-    }
-    if item.intent() == alexa_sdk::request::IntentType::Fallback {
-        return HttpResponse::Ok().json(Response::end());
-    }
-
-    HttpResponse::Ok().json(Response::new(false))
+    HttpResponse::Ok().json(response)
 }
 
 pub fn run() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::init();
+    info!("Starting server on 0.0.0.0:8086");
 
     HttpServer::new(|| {
         App::new()
