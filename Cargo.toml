@@ -6,8 +6,12 @@ edition = "2018"
 description = "A self hosted Alexa skill to control a network-enabled Pioneer AVR through telnet commands."
 
 [dependencies]
-alexa_sdk = { path="../alexa_rust" }
-actix-web = "1.0"
+alexa_sdk = { git = "https://github.com/tarkah/alexa_rust" }
+rust-alexa-webservice-verifier = { git = "https://github.com/tarkah/rust-alexa-webservice-verifier" }
+rouille = "3.0.0"
+bytes = "0.4"
 env_logger = "0.6"
 failure = "0.1"
 log = "0.4"
+serde_json = "1.0"
+telnet = "0.1"
