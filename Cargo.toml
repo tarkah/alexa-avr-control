@@ -7,7 +7,7 @@ description = "A self hosted Alexa skill to control a network-enabled Pioneer AV
 
 [dependencies]
 alexa_sdk = { git = "https://github.com/tarkah/alexa_rust" }
-rust-alexa-webservice-verifier = { git = "https://github.com/tarkah/rust-alexa-webservice-verifier" }
+alexa-verifier = { git = "https://github.com/tarkah/alexa-rust-webservice-verifier" }
 rouille = "3.0.0"
 bytes = "0.4"
 env_logger = "0.6"
