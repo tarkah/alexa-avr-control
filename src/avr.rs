@@ -75,7 +75,7 @@ fn send_and_validate(cmd: AvrCommand) -> Result<(), Error> {
     let code = cmd.code();
     info!("Translated to code: {:?}", code);
 
-    if !CHANNEL_A.0.is_empty() {
+    if CHANNEL_A.0.is_full() {
         bail!("Channel is full...");
     }
     CHANNEL_A.0.send(code.clone())?;

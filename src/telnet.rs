@@ -53,7 +53,7 @@ fn connect(addrs: &str) -> Result<(), Error> {
 }
 
 fn send_response(s: &str) -> Result<(), Error> {
-    if !CHANNEL_B.0.is_empty() {
+    if CHANNEL_B.0.is_full() {
         bail!("Channel is full...");
     }
     CHANNEL_B.0.send(s.to_owned())?;
