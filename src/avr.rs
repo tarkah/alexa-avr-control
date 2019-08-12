@@ -1,6 +1,6 @@
 use crate::{CHANNEL_A, CHANNEL_B};
 use crossbeam_channel::select;
-use failure::{bail, ensure, Error};
+use failure::{bail, Error};
 use log::{debug, info};
 use std::time::Duration;
 
@@ -96,7 +96,6 @@ fn get_response() -> Result<String, Error> {
     }
 }
 
-// Need to change this to correctly validate response format vs code sent
 fn validate_response(cmd: AvrCommand, code: &str, response: &str) -> Result<(), Error> {
     let validated = match cmd {
         AvrCommand::SetVolume(_) => {
@@ -104,11 +103,19 @@ fn validate_response(cmd: AvrCommand, code: &str, response: &str) -> Result<(), 
             let expected = format!("VOL{}\r\n", vol);
             response == expected
         }
-        _ => true,
+        AvrCommand::ChangeInput(_) => {
+            let inp = &code[0..2];
+            let expected = format!("FN{}\r\n", inp);
+            response == expected
+        }
+        AvrCommand::Mute => response == "MUT0\r\n",
+        AvrCommand::Unmute => response == "MUT1\r\n",
+        AvrCommand::PowerOn => response == "PWR0\r\n",
+        AvrCommand::PowerOff => response == "PWR1\r\n",
     };
     if !validated {
         bail!("AVR response doesn't match expected code. Can't confirm update took place.")
     }
-    info!("AVR response matches code sent.");
+    info!("AVR response matches expected code. Update appears to have worked.");
     Ok(())
 }
