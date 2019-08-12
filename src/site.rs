@@ -56,11 +56,12 @@ fn note_routes(request: &Request, verifier: &mut MutexGuard<RequestVerifier>) ->
     )
 }
 
-pub fn run() -> std::io::Result<()> {
-    info!("Starting server on 0.0.0.0:8086");
+pub fn run(port: &str) -> std::io::Result<()> {
     let verifier = Mutex::from(RequestVerifier::new());
 
-    rouille::start_server("0.0.0.0:8086", move |request| {
+    let addrs = format!("0.0.0.0:{}", port);
+    info!("Starting server on {}", addrs);
+    rouille::start_server(addrs, move |request| {
         let mut verifier = verifier.lock().unwrap();
         note_routes(&request, &mut verifier)
     });

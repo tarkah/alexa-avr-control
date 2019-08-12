@@ -15,3 +15,15 @@ pub fn hmm() -> Speech {
 pub fn help() -> Speech {
     Speech::plain("Try commands such as: on, off, mute, unmute, volume 2, input3.")
 }
+
+pub fn volume_error() -> Speech {
+    Speech::plain("Volume must be between 1 and 10.")
+}
+
+pub fn input_error() -> Speech {
+    Speech::plain("Input must be between 1 and 22.")
+}
+
+pub fn response_error() -> Speech {
+    Speech::plain("Don't think it worked...")
+}

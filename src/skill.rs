@@ -1,10 +1,13 @@
-use crate::{avr, speech};
+use crate::{
+    avr::{self, AvrCommand},
+    log_error, speech,
+};
 use alexa_sdk::{
     request::{IntentType, ReqType},
     Request, Response,
 };
-use failure::{bail, format_err, Error, ResultExt};
-use log::{error, info};
+use failure::{ensure, Error, Fail};
+use log::info;
 
 enum UserIntent {
     Volume,
@@ -63,8 +66,13 @@ fn process_intent(request: Request) -> Response {
 
     match response_result {
         Err(e) => {
-            log_error(e);
-            end_hmm()
+            log_error(&e);
+            match e.downcast::<SkillError>() {
+                Ok(SkillError::Volume { .. }) => end_volume_error(),
+                Ok(SkillError::Input { .. }) => end_input_error(),
+                Ok(SkillError::Response { .. }) => end_response_error(),
+                _ => end_hmm(),
+            }
         }
         Ok(response) => response,
     }
@@ -87,79 +95,63 @@ fn process_user_intent(mut s: String, request: Request) -> Result<Response, Erro
 }
 
 fn volume(slot_value: Option<String>) -> Result<Response, Error> {
-    let value =
-        slot_value.ok_or_else(|| format_err!("No value provided for UserIntent::Volume"))?;
+    let value = slot_value.unwrap();
     info!("Slot Value: {}", value);
 
-    let value = validate_volume_value(value)?;
+    let value =
+        validate_volume_value(value).map_err(|inner| Error::from(SkillError::Volume { inner }))?;
     info!("Got valid volume value: {}", value);
 
-    avr::process_volume(value)?;
-    info!("Volume successfully changed");
-
+    avr::process(AvrCommand::SetVolume(value))
+        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
     Ok(end_ok())
 }
 
 fn validate_volume_value(value: String) -> Result<u8, Error> {
-    let int = value
-        .parse::<u8>()
-        .context(format_err!("Volume value provided not a valid u8"))?;
-
-    if int == 0 || int > 10 {
-        bail!("Volume value not between 1 and 10")
-    }
+    let int = value.parse::<u8>()?;
+    ensure!(int > 0 && int < 11, "Volume not between 1 and 10");
     Ok(int)
 }
 
 fn input(slot_value: Option<String>) -> Result<Response, Error> {
-    let value = slot_value.ok_or_else(|| format_err!("No value provided for UserIntent::Input"))?;
+    let value = slot_value.unwrap();
     info!("Slot Value: {}", value);
 
-    let value = validate_input_value(value)?;
+    let value =
+        validate_input_value(value).map_err(|inner| Error::from(SkillError::Input { inner }))?;
     info!("Got valid input value: {}", value);
 
-    avr::process_input(value)?;
-    info!("Input successfully changed");
-
+    avr::process(AvrCommand::ChangeInput(value))
+        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
     Ok(end_ok())
 }
 
 fn validate_input_value(value: String) -> Result<u8, Error> {
-    let int = value
-        .parse::<u8>()
-        .context(format_err!("Input value provided not a valid u8"))?;
-
-    if int == 0 || int > 22 {
-        bail!("Input value not between 1 and 22")
-    }
+    let int = value.parse::<u8>()?;
+    ensure!(int > 0 && int < 23, "Input not between 1 and 22");
     Ok(int)
 }
 
 fn mute() -> Result<Response, Error> {
-    avr::process_mute()?;
-
-    info!("AVR successfully muted");
+    avr::process(AvrCommand::Mute).map_err(|inner| Error::from(SkillError::Response { inner }))?;
     Ok(end_ok())
 }
 
 fn unmute() -> Result<Response, Error> {
-    avr::process_unmute()?;
-
-    info!("AVR successfully unmuted");
+    avr::process(AvrCommand::Unmute)
+        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
     Ok(end_ok())
 }
 
 fn on() -> Result<Response, Error> {
-    avr::process_on()?;
-
-    info!("AVR successfully powered on");
+    avr::process(AvrCommand::PowerOn)
+        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
     Ok(end_ok())
 }
 
 fn off() -> Result<Response, Error> {
-    avr::process_off()?;
-
-    info!("AVR successfully powered off");
+    avr::process(AvrCommand::PowerOff)
+        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
     Ok(end_ok())
 }
 
@@ -183,9 +175,24 @@ fn end_hmm() -> Response {
     Response::new(true).speech(speech::hmm())
 }
 
-fn log_error(e: Error) {
-    error!("{}", e);
-    for cause in e.iter_causes() {
-        error!("Caused by: {}", cause);
-    }
+fn end_volume_error() -> Response {
+    Response::new(true).speech(speech::volume_error())
+}
+
+fn end_input_error() -> Response {
+    Response::new(true).speech(speech::input_error())
+}
+
+fn end_response_error() -> Response {
+    Response::new(true).speech(speech::response_error())
+}
+
+#[derive(Fail, Debug)]
+enum SkillError {
+    #[fail(display = "Volume error: {}", inner)]
+    Volume { inner: Error },
+    #[fail(display = "Input error: {}", inner)]
+    Input { inner: Error },
+    #[fail(display = "Response error: {}", inner)]
+    Response { inner: Error },
 }
