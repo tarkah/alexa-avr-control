@@ -18,7 +18,7 @@ pub enum AvrCommand {
     ChangeInput(u8),
 }
 
-impl<'a> AvrCommand {
+impl AvrCommand {
     fn code(&self) -> String {
         match &self {
             AvrCommand::SetVolume(n) => get_volume_code(*n),
