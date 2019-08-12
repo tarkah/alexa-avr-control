@@ -53,8 +53,13 @@ fn connect(addrs: &str) -> Result<(), Error> {
 }
 
 fn send_response(s: &str) -> Result<(), Error> {
+    // Clear channel B if full, it shouldn't be
     if CHANNEL_B.0.is_full() {
-        bail!("Channel is full...");
+        select! {
+            recv(CHANNEL_B.1) -> _ => {}
+            default() => {}
+        }
+        debug!("Had to clear channel B");
     }
     CHANNEL_B.0.send(s.to_owned())?;
     debug!("Sent response code via channel B: {:?}", s);

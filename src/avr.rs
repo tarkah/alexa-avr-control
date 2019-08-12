@@ -75,8 +75,13 @@ fn send_and_validate(cmd: AvrCommand) -> Result<(), Error> {
     let code = cmd.code();
     info!("Translated to code: {:?}", code);
 
+    // Clear channel A if full, it shouldn't be
     if CHANNEL_A.0.is_full() {
-        bail!("Channel is full...");
+        select! {
+            recv(CHANNEL_A.1) -> _ => {}
+            default => {}
+        }
+        debug!("Had to clear channel A");
     }
     CHANNEL_A.0.send(code.clone())?;
     debug!("Sent code via channel A: {:?}", code);
@@ -92,7 +97,10 @@ fn get_response() -> Result<String, Error> {
             debug!("Response code received via channel B: {:?}", msg);
             Ok(msg)
         },
-        default(Duration::from_millis(1_000)) => bail!("Timeout. Didn't get response from AVR."),
+        // Response should be received within 1 second, otherwise assume error
+        default(Duration::from_millis(1_000)) => {
+            bail!("Timeout. Didn't get response from AVR.");
+        }
     }
 }
 
