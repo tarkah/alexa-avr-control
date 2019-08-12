@@ -1,7 +1,7 @@
 use crate::{log_error, CHANNEL_A, CHANNEL_B};
 use crossbeam_channel::select;
 use failure::{bail, Error, ResultExt};
-use log::{debug, error, info};
+use log::{debug, info};
 use std::{
     thread::{self, sleep},
     time::Duration,
@@ -32,6 +32,9 @@ fn connect(addrs: &str) -> Result<(), Error> {
                 conn.write(code.as_str().as_bytes()).context("Could not write to AVR via telnet")?;
 
                 let resp = conn.read_timeout(Duration::from_millis(500)).context("Telnet response error")?;
+
+                // Data should always be received back from AVR. Assume connection
+                // is broken otherwise, and bail to attempt reconnect.
                 match resp {
                     TelnetEvent::Data(d) => {
                         let s = std::str::from_utf8(&d).context(format!("Could not convert response to UTF-8: {:?}", d))?;
@@ -44,7 +47,7 @@ fn connect(addrs: &str) -> Result<(), Error> {
                         bail!("Timeout... Resetting connection to AVR");
                     },
                     _ => {
-                        error!("Unknown response from AVR: {:?}", resp);
+                        bail!("Unknown response from AVR, resetting connection: {:?}", resp);
                     }
                 }
             },
