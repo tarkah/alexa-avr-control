@@ -9,7 +9,7 @@ mod avr;
 mod site;
 mod skill;
 mod speech;
-mod tel;
+mod telnet;
 
 lazy_static! {
     // Send messages from AVR to Tel
@@ -28,6 +28,7 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     env_logger::from_env(Env::default().default_filter_or("alexa_avr_control=info")).init();
+
     initialize(&CHANNEL_A);
     initialize(&CHANNEL_B);
 
@@ -53,8 +54,9 @@ fn run() -> Result<(), Error> {
     let avr_host = matches.value_of("HOST").unwrap();
     let port = matches.value_of("port").unwrap();
 
-    tel::run(avr_host.to_owned())?;
+    telnet::run(avr_host.to_owned())?;
     site::run(port)?;
+
     Ok(())
 }
 

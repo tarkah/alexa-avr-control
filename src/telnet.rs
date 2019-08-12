@@ -6,7 +6,7 @@ use std::{
     thread::{self, sleep},
     time::Duration,
 };
-use telnet::Telnet;
+use telnet::{Telnet, TelnetEvent};
 
 pub fn run(addrs: String) -> Result<(), Error> {
     thread::spawn(move || loop {
@@ -33,14 +33,14 @@ fn connect(addrs: &str) -> Result<(), Error> {
 
                 let resp = conn.read_timeout(Duration::from_millis(500)).context("Telnet response error")?;
                 match resp {
-                    telnet::TelnetEvent::Data(d) => {
+                    TelnetEvent::Data(d) => {
                         let s = std::str::from_utf8(&d).context(format!("Could not convert response to UTF-8: {:?}", d))?;
                         info!("Code sent to AVR: {:?}. Received back: {:?}", code, s);
                         if let Err(e) = send_response(s) {
                             log_error(&e);
                         }
                     },
-                    telnet::TelnetEvent::TimedOut => {
+                    TelnetEvent::TimedOut => {
                         bail!("Timeout... Resetting connection to AVR");
                     },
                     _ => {
