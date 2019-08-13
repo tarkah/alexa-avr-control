@@ -1,3 +1,13 @@
+/// This module is responsible over maintaining a telnet connection
+/// to the AVR device, and receiving commands that need to be sent over
+/// that telnet connection.   
+///
+/// Crossbeam channels are used for communicating between the skill's request
+/// and this thread.   
+///
+/// The AVR device will always respond to the telnet command with a response
+/// code, which needs to be sent back via crossbeam channel to finish
+/// procsesing on the skill side.
 use crate::{log_error, CHANNEL_A, CHANNEL_B};
 use crossbeam_channel::select;
 use failure::{bail, Error, ResultExt};
@@ -8,6 +18,9 @@ use std::{
 };
 use telnet::{Telnet, TelnetEvent};
 
+/// Spawn a new thread to run telnet communication between AVR.   
+///
+/// Attempt to reconnect if error occurs, logging error.
 pub fn run(addrs: String) -> Result<(), Error> {
     thread::spawn(move || loop {
         if let Err(e) = connect(&addrs) {
@@ -19,6 +32,15 @@ pub fn run(addrs: String) -> Result<(), Error> {
     Ok(())
 }
 
+/// Connects to AVR and waits for commands from skill.   
+///
+/// Upon receiving command, it will send to AVR over telnet connection.
+/// It will then try to get response from AVR, which should be some data code,
+/// and send that back to the skill for further processing.   
+///
+/// If this response doesn't occur (timeout), or if the response type isn't valid
+/// (could happen from connection error), assume connection is broken and bail to
+/// reconnect.
 fn connect(addrs: &str) -> Result<(), Error> {
     let mut conn =
         Telnet::connect((addrs, 5555), 256).context("Could not connect to AVR via telnet")?;
@@ -55,6 +77,7 @@ fn connect(addrs: &str) -> Result<(), Error> {
     }
 }
 
+/// Send response code back to skill for further processing.
 fn send_response(s: &str) -> Result<(), Error> {
     // Clear channel B if full, it shouldn't be
     if CHANNEL_B.0.is_full() {
