@@ -130,25 +130,23 @@ fn get_response() -> Result<String, Error> {
 /// matches the expected response, per documentation. If not, the request most
 /// likely wasn't succesful.
 fn validate_response(cmd: AvrCommand, code: &str, response: &str) -> Result<(), Error> {
-    let validated = match cmd {
-        AvrCommand::SetVolume(_) => {
-            let vol = &code[0..3];
-            let expected = format!("VOL{}\r\n", vol);
-            response == expected
-        }
-        AvrCommand::ChangeInput(_) => {
-            let inp = &code[0..2];
-            let expected = format!("FN{}\r\n", inp);
-            response == expected
-        }
-        AvrCommand::Mute => response == "MUT0\r\n",
-        AvrCommand::Unmute => response == "MUT1\r\n",
-        AvrCommand::PowerOn => response == "PWR0\r\n",
-        AvrCommand::PowerOff => response == "PWR1\r\n",
+    let expected = match cmd {
+        AvrCommand::SetVolume(_) => format!("VOL{}\r\n", &code[0..3]),
+        AvrCommand::ChangeInput(_) => format!("FN{}\r\n", &code[0..2]),
+        AvrCommand::Mute => "MUT0\r\n".to_owned(),
+        AvrCommand::Unmute => "MUT1\r\n".to_owned(),
+        AvrCommand::PowerOn => "PWR0\r\n".to_owned(),
+        AvrCommand::PowerOff => "PWR1\r\n".to_owned(),
     };
-    if !validated {
-        bail!("AVR response doesn't match expected code. Can't confirm update took place.")
+    if response != expected {
+        bail!(
+            "AVR response doesn't match expected code: {:?}. Can't confirm update took place.",
+            expected
+        )
     }
-    info!("AVR response matches expected code. Update appears to have worked.");
+    info!(
+        "AVR response matches expected code: {:?}. Update appears to have worked.",
+        expected
+    );
     Ok(())
 }
