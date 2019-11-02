@@ -28,3 +28,15 @@ pub fn input_error() -> Speech {
 pub fn response_error() -> Speech {
     Speech::plain("Don't think it worked...")
 }
+
+pub fn error_power_already_off() -> Speech {
+    Speech::plain("Power is already off.")
+}
+
+pub fn error_power_already_on() -> Speech {
+    Speech::plain("Power is already on.")
+}
+
+pub fn error_turn_power_on() -> Speech {
+    Speech::plain("Turn power on first.")
+}

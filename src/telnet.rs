@@ -21,9 +21,9 @@ use telnet::{Telnet, TelnetEvent};
 /// Spawn a new thread to run telnet communication between AVR.   
 ///
 /// Attempt to reconnect if error occurs, logging error.
-pub fn run(addrs: String) -> Result<(), Error> {
+pub fn run(addrs: String, port: u16) -> Result<(), Error> {
     thread::spawn(move || loop {
-        if let Err(e) = connect(&addrs) {
+        if let Err(e) = connect(&addrs, port) {
             log_error(&e);
             sleep(Duration::from_secs(10));
         }
@@ -41,9 +41,14 @@ pub fn run(addrs: String) -> Result<(), Error> {
 /// If this response doesn't occur (timeout), or if the response type isn't valid
 /// (could happen from connection error), assume connection is broken and bail to
 /// reconnect.
-fn connect(addrs: &str) -> Result<(), Error> {
+///
+/// Also clears the telnet channel every 1 second, as AVR will send a heartbeat
+/// signal every 30 seconds: "R\r\n". We don't want this present in the response
+/// from AVR after we send our command.
+fn connect(addrs: &str, port: u16) -> Result<(), Error> {
     let mut conn =
-        Telnet::connect((addrs, 5555), 256).context("Could not connect to AVR via telnet")?;
+        Telnet::connect((addrs, port), 256).context("Could not connect to AVR via telnet")?;
+    info!("Successful connection to AVR via telnet");
 
     loop {
         select! {
@@ -51,28 +56,38 @@ fn connect(addrs: &str) -> Result<(), Error> {
                 let code = code?;
                 debug!("Code received via channel A: {:?}", code);
 
-                conn.write(code.as_str().as_bytes()).context("Could not write to AVR via telnet")?;
+                conn.write(code.as_bytes()).context("Could not write to AVR via telnet")?;
 
-                let resp = conn.read_timeout(Duration::from_millis(500)).context("Telnet response error")?;
+                let mut resp_buffer = String::new();
 
-                // Data should always be received back from AVR. Assume connection
-                // is broken otherwise, and bail to attempt reconnect.
+                // AVR responds twice with Power On request, the first being useless. We need to capture it to keep 2nd
+                // response from being missed and populating later requests.
+                thread::sleep(Duration::from_millis(500));
+                let resp = conn.read_timeout(Duration::from_millis(500)).context("Error reading from telnet connection")?;
                 match resp {
                     TelnetEvent::Data(d) => {
                         let s = std::str::from_utf8(&d).context(format!("Could not convert response to UTF-8: {:?}", d))?;
-                        info!("Code sent to AVR: {:?}. Received back: {:?}", code, s);
-                        if let Err(e) = send_response(s) {
-                            log_error(&e);
-                        }
+                        resp_buffer.push_str(s);
                     },
-                    TelnetEvent::TimedOut => {
-                        bail!("Timeout... Resetting connection to AVR");
-                    },
+                    TelnetEvent::TimedOut => {},
                     _ => {
                         bail!("Unknown response from AVR, resetting connection: {:?}", resp);
                     }
                 }
+
+                info!("Code sent to AVR: {:?}. Received back: {:?}", code, resp_buffer);
+                if let Err(e) = send_response(&resp_buffer) {
+                    log_error(&e);
+                }
             },
+            // Clear telnet connection of any "R\r\n" heartbeat messages
+            default(Duration::from_millis(1000)) => {
+                let resp = conn.read_nonblocking().context("Error reading from telnet connection")?;
+                if let TelnetEvent::Data(d) = resp {
+                    let s = std::str::from_utf8(&d).context(format!("Could not convert response to UTF-8: {:?}", d))?;
+                    debug!("Cleared from connection: {:?}", s);
+                }
+            }
         }
     }
 }

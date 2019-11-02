@@ -5,7 +5,7 @@
 /// was executed successfuly.
 use crate::{CHANNEL_A, CHANNEL_B};
 use crossbeam_channel::select;
-use failure::{bail, Error};
+use failure::{bail, Error, Fail};
 use log::{debug, info};
 use std::time::Duration;
 
@@ -16,6 +16,7 @@ pub fn process(cmd: AvrCommand) -> Result<(), Error> {
 }
 
 /// Commands that can be sent to AVR
+#[derive(PartialEq)]
 pub enum AvrCommand {
     SetVolume(u8),
     Mute,
@@ -23,6 +24,15 @@ pub enum AvrCommand {
     PowerOn,
     PowerOff,
     ChangeInput(u8),
+    VolumeDown,
+    VolumeUp,
+}
+
+enum AvrQuery {
+    Volume,
+    Mute,
+    Power,
+    Input,
 }
 
 impl AvrCommand {
@@ -36,7 +46,53 @@ impl AvrCommand {
             AvrCommand::PowerOff => "PF\r".to_owned(),
             AvrCommand::Mute => "MO\r".to_owned(),
             AvrCommand::Unmute => "MF\r".to_owned(),
+            AvrCommand::VolumeDown => "VD\r\n".to_owned(),
+            AvrCommand::VolumeUp => "VU\r\n".to_owned(),
         }
+    }
+
+    fn query(&self) -> Result<String, Error> {
+        let query_type = match &self {
+            AvrCommand::SetVolume(_) => AvrQuery::Volume,
+            AvrCommand::ChangeInput(_) => AvrQuery::Input,
+            AvrCommand::PowerOn => AvrQuery::Power,
+            AvrCommand::PowerOff => AvrQuery::Power,
+            AvrCommand::Mute => AvrQuery::Mute,
+            AvrCommand::Unmute => AvrQuery::Mute,
+            AvrCommand::VolumeDown => AvrQuery::Volume,
+            AvrCommand::VolumeUp => AvrQuery::Volume,
+        };
+        query_type.query()
+    }
+
+    fn expected(&self) -> String {
+        match &self {
+            AvrCommand::SetVolume(_) => format!("VOL{}\r\n", &self.code()[0..3]),
+            AvrCommand::ChangeInput(_) => format!("FN{}\r\n", &self.code()[0..2]),
+            AvrCommand::Mute => "MUT0\r\n".to_owned(),
+            AvrCommand::Unmute => "MUT1\r\n".to_owned(),
+            AvrCommand::PowerOn => "PWR0\r\n".to_owned(),
+            AvrCommand::PowerOff => "PWR2\r\n".to_owned(),
+            AvrCommand::VolumeDown => "VOL".to_owned(),
+            AvrCommand::VolumeUp => "VOL".to_owned(),
+        }
+    }
+}
+
+impl AvrQuery {
+    /// Convert enum to the appropriate telnet command supported
+    /// by the AVR
+    fn code(&self) -> String {
+        match &self {
+            AvrQuery::Volume => "?V\r".to_owned(),
+            AvrQuery::Mute => "?M\r".to_owned(),
+            AvrQuery::Power => "?P\r".to_owned(),
+            AvrQuery::Input => "?F\r".to_owned(),
+        }
+    }
+
+    fn query(&self) -> Result<String, Error> {
+        send_command(&self.code())
     }
 }
 
@@ -47,9 +103,9 @@ impl AvrCommand {
 ///
 /// Must be padded to three digits: "{:0>3}"
 fn get_volume_code(n: u8) -> String {
-    let ceiling = 161.0;
+    let ceiling = 101.0;
     let weight = f32::from(n) / 10.0;
-    let volume = (weight * ceiling).floor() as u8;
+    let volume = (weight * ceiling).ceil() as u8;
     let mut volume = format!("{:0>3}", volume);
     volume.push_str("VL\r");
     volume
@@ -59,12 +115,12 @@ fn get_volume_code(n: u8) -> String {
 fn get_input_code(n: u8) -> String {
     let code = match n {
         1 => "25",  // BD
-        2 => "04",  // DVD
-        3 => "05",  // TV/SAT
+        2 => "49",  // Game
+        3 => "19",  // HDMI 1
         4 => "15",  // DVR/BDR
         5 => "10",  // VIDEO 1(VIDEO)
         6 => "14",  // VIDEO 2
-        7 => "19",  // HDMI 1
+        7 => "05",  // TV/SAT
         8 => "20",  // HDMI 2
         9 => "21",  // HDMI 3
         10 => "22", // HDMI 4
@@ -80,6 +136,7 @@ fn get_input_code(n: u8) -> String {
         20 => "33", // ADAPTER PORT
         21 => "27", // SIRIUS
         22 => "31", // HDMI (cyclic)
+        23 => "04", // DVD
         _ => "",    // Should never be reached
     };
     let mut code = code.to_owned();
@@ -93,9 +150,68 @@ fn get_input_code(n: u8) -> String {
 /// Telnet thread will send response back from AVR, which then can be validated
 /// to give us confidence that the requested command was successful.
 fn send_and_validate(cmd: AvrCommand) -> Result<(), Error> {
-    let code = cmd.code();
-    info!("Translated to code: {:?}", code);
+    info!("Translated to code: {:?}", &cmd.code());
 
+    power_validation(&cmd)?;
+
+    // Don't care about this response (unreliable), will query to confirm
+    match cmd {
+        AvrCommand::SetVolume(_) => {
+            volume_control(cmd.code())?;
+            // Sleep to allow AVR to process before querying for final Vol
+            std::thread::sleep(Duration::from_millis(2_000));
+        }
+        AvrCommand::PowerOn => {
+            let _ = send_command(&cmd.code())?;
+            // Sleep to allow AVR to process before querying for final Vol
+            std::thread::sleep(Duration::from_millis(1_000));
+        }
+        _ => {
+            let _ = send_command(&cmd.code())?;
+        }
+    }
+
+    let query_response = cmd.query()?;
+
+    validate_response(cmd, query_response)
+}
+
+fn power_validation(cmd: &AvrCommand) -> Result<(), Error> {
+    let current_power = AvrQuery::Power.query()?;
+    if current_power.contains(&AvrCommand::PowerOff.expected()) && cmd != &AvrCommand::PowerOn {
+        if cmd == &AvrCommand::PowerOff {
+            return Err(AvrError::PowerAlreadyOff.into());
+        } else {
+            return Err(AvrError::PowerOffCantProcess.into());
+        }
+    } else if current_power.contains(&AvrCommand::PowerOn.expected()) && cmd == &AvrCommand::PowerOn
+    {
+        return Err(AvrError::PowerAlreadyOn.into());
+    }
+    Ok(())
+}
+
+fn volume_control(code: String) -> Result<(), Error> {
+    let current_volume = AvrQuery::Volume
+        .query()?
+        .trim_end()
+        .trim_start_matches("VOL")
+        .parse::<i8>()?;
+    let desired_volume = &code[0..3].parse::<i8>()?;
+    let diff = desired_volume - current_volume;
+    let steps = diff / 2;
+    let vol_adj = if steps > 0 {
+        AvrCommand::VolumeUp.code().repeat(steps as usize)
+    } else {
+        AvrCommand::VolumeDown.code().repeat(steps.abs() as usize)
+    };
+
+    send_command(&vol_adj)?;
+
+    Ok(())
+}
+
+fn send_command(code: &str) -> Result<String, Error> {
     // Clear channel A if full, it shouldn't be
     if CHANNEL_A.0.is_full() {
         select! {
@@ -104,14 +220,13 @@ fn send_and_validate(cmd: AvrCommand) -> Result<(), Error> {
         }
         debug!("Had to clear channel A");
     }
-    CHANNEL_A.0.send(code.clone())?;
+    CHANNEL_A.0.send(code.to_owned())?;
     debug!("Sent code via channel A: {:?}", code);
 
-    let response = get_response()?;
-    validate_response(cmd, &code, &response)
+    get_response()
 }
 
-/// Get response code back from AVR. If this response takes longer than 1
+/// Get response code back from AVR. If this response takes longer than 1.5
 /// second, assume error.
 fn get_response() -> Result<String, Error> {
     select! {
@@ -120,8 +235,8 @@ fn get_response() -> Result<String, Error> {
             debug!("Response code received via channel B: {:?}", msg);
             Ok(msg)
         },
-        default(Duration::from_millis(1_000)) => {
-            bail!("Timeout. Didn't get response from AVR.");
+        default(Duration::from_millis(1_500)) => {
+            bail!(AvrError::Timeout);
         }
     }
 }
@@ -129,24 +244,31 @@ fn get_response() -> Result<String, Error> {
 /// AVR sends back code validating the request. Confirm that this response code
 /// matches the expected response, per documentation. If not, the request most
 /// likely wasn't succesful.
-fn validate_response(cmd: AvrCommand, code: &str, response: &str) -> Result<(), Error> {
-    let expected = match cmd {
-        AvrCommand::SetVolume(_) => format!("VOL{}\r\n", &code[0..3]),
-        AvrCommand::ChangeInput(_) => format!("FN{}\r\n", &code[0..2]),
-        AvrCommand::Mute => "MUT0\r\n".to_owned(),
-        AvrCommand::Unmute => "MUT1\r\n".to_owned(),
-        AvrCommand::PowerOn => "PWR0\r\n".to_owned(),
-        AvrCommand::PowerOff => "PWR1\r\n".to_owned(),
-    };
-    if response != expected {
-        bail!(
-            "AVR response doesn't match expected code: {:?}. Can't confirm update took place.",
-            expected
-        )
+fn validate_response(cmd: AvrCommand, response: String) -> Result<(), Error> {
+    let expected = cmd.expected();
+    if !response.contains(&expected) {
+        bail!(AvrError::ResponseDoesntMatch { expected });
     }
     info!(
         "AVR response matches expected code: {:?}. Update appears to have worked.",
         expected
     );
     Ok(())
+}
+
+#[derive(Fail, Debug)]
+pub enum AvrError {
+    #[fail(display = "Timeout. Didn't get response from AVR.")]
+    Timeout,
+    #[fail(display = "Power already off.")]
+    PowerAlreadyOff,
+    #[fail(display = "Power already on.")]
+    PowerAlreadyOn,
+    #[fail(display = "Power is off, it must be turned on to execute command.")]
+    PowerOffCantProcess,
+    #[fail(
+        display = "AVR response doesn't match expected code: {:?}. Can't confirm update took place.",
+        expected
+    )]
+    ResponseDoesntMatch { expected: String },
 }

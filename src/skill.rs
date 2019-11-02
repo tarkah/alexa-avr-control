@@ -4,7 +4,7 @@
 /// Once the request's intent is determined, this will call `avr::process()`
 /// along with the appropriate `AvrCommand` to be executed.
 use crate::{
-    avr::{self, AvrCommand},
+    avr::{self, AvrCommand, AvrError},
     log_error, speech,
 };
 use alexa_sdk::{
@@ -86,16 +86,11 @@ fn process_intent(request: Request) -> Response {
     };
 
     match response_result {
+        Ok(response) => response,
         Err(e) => {
             log_error(&e);
-            match e.downcast::<SkillError>() {
-                Ok(SkillError::Volume { .. }) => end_volume_error(),
-                Ok(SkillError::Input { .. }) => end_input_error(),
-                Ok(SkillError::Response { .. }) => end_response_error(),
-                _ => end_hmm(),
-            }
+            verbalize_error(e)
         }
-        Ok(response) => response,
     }
 }
 
@@ -140,8 +135,7 @@ fn volume(slot_value: Option<String>) -> Result<Response, Error> {
         validate_volume_value(value).map_err(|inner| Error::from(SkillError::Volume { inner }))?;
     info!("Got valid volume value: {}", value);
 
-    avr::process(AvrCommand::SetVolume(value))
-        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
+    avr::process(AvrCommand::SetVolume(value))?;
     Ok(end_ok())
 }
 
@@ -165,8 +159,7 @@ fn input(slot_value: Option<String>) -> Result<Response, Error> {
         validate_input_value(value).map_err(|inner| Error::from(SkillError::Input { inner }))?;
     info!("Got valid input value: {}", value);
 
-    avr::process(AvrCommand::ChangeInput(value))
-        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
+    avr::process(AvrCommand::ChangeInput(value))?;
     Ok(end_ok())
 }
 
@@ -179,28 +172,25 @@ fn validate_input_value(value: String) -> Result<u8, Error> {
 
 /// Process `AvrCommand::Mute`
 fn mute() -> Result<Response, Error> {
-    avr::process(AvrCommand::Mute).map_err(|inner| Error::from(SkillError::Response { inner }))?;
+    avr::process(AvrCommand::Mute)?;
     Ok(end_ok())
 }
 
 /// Process `AvrCommand::Unmute`
 fn unmute() -> Result<Response, Error> {
-    avr::process(AvrCommand::Unmute)
-        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
+    avr::process(AvrCommand::Unmute)?;
     Ok(end_ok())
 }
 
 /// Process `AvrCommand::PowerOn`
 fn on() -> Result<Response, Error> {
-    avr::process(AvrCommand::PowerOn)
-        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
+    avr::process(AvrCommand::PowerOn)?;
     Ok(end_ok())
 }
 
 /// Process `AvrCommand::PowerOff`
 fn off() -> Result<Response, Error> {
-    avr::process(AvrCommand::PowerOff)
-        .map_err(|inner| Error::from(SkillError::Response { inner }))?;
+    avr::process(AvrCommand::PowerOff)?;
     Ok(end_ok())
 }
 
@@ -247,6 +237,18 @@ fn end_response_error() -> Response {
     Response::new(true).speech(speech::response_error())
 }
 
+fn end_error_power_already_off() -> Response {
+    Response::new(true).speech(speech::error_power_already_off())
+}
+
+fn end_error_power_already_on() -> Response {
+    Response::new(true).speech(speech::error_power_already_on())
+}
+
+fn end_error_turn_power_on() -> Response {
+    Response::new(true).speech(speech::error_turn_power_on())
+}
+
 /// Error for this module, mainly used to determine appropriate speech to
 /// include in the Response
 #[derive(Fail, Debug)]
@@ -255,6 +257,25 @@ enum SkillError {
     Volume { inner: Error },
     #[fail(display = "Input error: {}", inner)]
     Input { inner: Error },
-    #[fail(display = "Response error: {}", inner)]
-    Response { inner: Error },
+}
+
+fn verbalize_error(e: Error) -> Response {
+    match e.downcast::<SkillError>() {
+        Ok(e) => match e {
+            SkillError::Volume { .. } => end_volume_error(),
+            SkillError::Input { .. } => end_input_error(),
+        },
+        Err(e) => {
+            if let Ok(e) = e.downcast::<AvrError>() {
+                match e {
+                    AvrError::PowerAlreadyOn => end_error_power_already_on(),
+                    AvrError::PowerAlreadyOff => end_error_power_already_off(),
+                    AvrError::PowerOffCantProcess => end_error_turn_power_on(),
+                    _ => end_response_error(),
+                }
+            } else {
+                end_response_error()
+            }
+        }
+    }
 }

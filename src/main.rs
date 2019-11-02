@@ -61,6 +61,16 @@ fn run() -> Result<(), Error> {
                           .arg(Arg::with_name("HOST").required(true)
                                                      .index(1)
                                                      .help("Specify the host / ip of the AVR"))
+                          .arg(Arg::with_name("PORT").required(true)
+                                                     .index(2)
+                                                     .help("Specify the telnet port for the AVR")
+                                                     .validator(|p| {
+                                                            let p = p.parse::<u16>().map_err(|_| "Port provided not valid");
+                                                            match p {
+                                                                Ok(_) => Ok(()),
+                                                                Err(e) => Err(e.to_owned())
+                                                            }                                                        
+                                                        }))
                           .arg(Arg::with_name("port").short("p")
                                                      .takes_value(true)
                                                      .help("Specify the port to run the skill web service on")
@@ -74,10 +84,11 @@ fn run() -> Result<(), Error> {
                                                         }))
                           .get_matches();
     let avr_host = matches.value_of("HOST").unwrap();
-    let port = matches.value_of("port").unwrap();
+    let avr_port = matches.value_of("PORT").unwrap().parse::<u16>().unwrap();
+    let site_port = matches.value_of("port").unwrap();
 
-    telnet::run(avr_host.to_owned())?;
-    site::run(port)?;
+    telnet::run(avr_host.to_owned(), avr_port)?;
+    site::run(site_port)?;
 
     Ok(())
 }
