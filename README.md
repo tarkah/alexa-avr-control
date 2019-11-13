@@ -10,7 +10,7 @@ Cory F. <cforsstrom18@gmail.com>
 A self hosted Alexa skill to control a network-enabled Pioneer AVR through telnet commands.
 
 USAGE:
-    alexa-avr-control [OPTIONS] <HOST>
+    alexa-avr-control [OPTIONS] <HOST> <PORT>
 
 FLAGS:
     -h, --help       Prints help information
@@ -21,4 +21,5 @@ OPTIONS:
 
 ARGS:
     <HOST>    Specify the host / ip of the AVR
+    <PORT>    Specify the telnet port for the AVR
 ```

@@ -1,0 +1,92 @@
+{
+    "interactionModel": {
+        "languageModel": {
+            "invocationName": "avr",
+            "intents": [
+                {
+                    "name": "AMAZON.FallbackIntent",
+                    "samples": []
+                },
+                {
+                    "name": "AMAZON.CancelIntent",
+                    "samples": [
+                        "cancel"
+                    ]
+                },
+                {
+                    "name": "AMAZON.HelpIntent",
+                    "samples": [
+                        "help"
+                    ]
+                },
+                {
+                    "name": "AMAZON.StopIntent",
+                    "samples": [
+                        "stop"
+                    ]
+                },
+                {
+                    "name": "AMAZON.NavigateHomeIntent",
+                    "samples": [
+                        "restart"
+                    ]
+                },
+                {
+                    "name": "Volume",
+                    "slots": [
+                        {
+                            "name": "Volume_slot",
+                            "type": "AMAZON.NUMBER"
+                        }
+                    ],
+                    "samples": [
+                        "volume {Volume_slot}"
+                    ]
+                },
+                {
+                    "name": "Input",
+                    "slots": [
+                        {
+                            "name": "Input_slot",
+                            "type": "AMAZON.NUMBER"
+                        }
+                    ],
+                    "samples": [
+                        "input {Input_slot}"
+                    ]
+                },
+                {
+                    "name": "Mute",
+                    "slots": [],
+                    "samples": [
+                        "mute"
+                    ]
+                },
+                {
+                    "name": "Unmute",
+                    "slots": [],
+                    "samples": [
+                        "unmute"
+                    ]
+                },
+                {
+                    "name": "On",
+                    "slots": [],
+                    "samples": [
+                        "power on",
+                        "on"
+                    ]
+                },
+                {
+                    "name": "Off",
+                    "slots": [],
+                    "samples": [
+                        "power off",
+                        "off"
+                    ]
+                }
+            ],
+            "types": []
+        }
+    }
+}
