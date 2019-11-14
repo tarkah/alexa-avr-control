@@ -6,15 +6,12 @@ use crate::skill::process_request;
 use alexa_verifier::RequestVerifier;
 use log::{debug, error, info};
 use rouille::{router, Request, Response};
-use std::{
-    io::Read,
-    sync::{Mutex, MutexGuard},
-};
+use std::io::Read;
 
 /// Only one route is needed to accept json POST request from Alexa.   
 ///
 /// All other routes will return 404
-fn note_routes(request: &Request, verifier: &mut MutexGuard<RequestVerifier>) -> Response {
+fn note_routes(request: &Request, verifier: &RequestVerifier) -> Response {
     router!(request,
         (POST) (/) => {
             info!("Request received...");
@@ -76,12 +73,9 @@ fn note_routes(request: &Request, verifier: &mut MutexGuard<RequestVerifier>) ->
 /// `alexa_verifier::RequestVerifier` needs to be mutexed for safe acces, as
 /// it contains a certificate cache.
 pub fn run(port: &str) -> std::io::Result<()> {
-    let verifier = Mutex::from(RequestVerifier::new());
+    let verifier = RequestVerifier::new();
 
     let addrs = format!("0.0.0.0:{}", port);
     info!("Starting server on {}", addrs);
-    rouille::start_server(addrs, move |request| {
-        let mut verifier = verifier.lock().unwrap();
-        note_routes(&request, &mut verifier)
-    });
+    rouille::start_server(addrs, move |request| note_routes(&request, &verifier));
 }
