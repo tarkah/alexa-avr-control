@@ -1,11 +1,11 @@
 /// This program hosts a custom web service for processing requests for the
 /// Alexa AVR Control skill.   
-/// 
+///
 /// At a high level, the program will launch a thread to manage the telnet
 /// connection to the networked AVR device and another thread for the Rouille
 /// server, which will have a single route to receive json POST requests from
 /// the Alexa skill.   
-/// 
+///
 /// When requests are received from Alexa, the request will be verified,
 /// deserialized and processed into the approriate command needing to be sent
 /// to the AVR. The request thread will send a message to the telnet thread
@@ -45,7 +45,7 @@ fn main() {
 }
 
 /// Run the program...   
-/// 
+///
 /// Setup the logger, intialize the crossbeam channels, process command line
 /// arguments and kick off the telnet and Rouille threads.
 fn run() -> Result<(), Error> {
@@ -55,7 +55,7 @@ fn run() -> Result<(), Error> {
     initialize(&CHANNEL_B);
 
     let matches = App::new("Alexa AVR Control")
-                          .version("0.1.0")
+                          .version("0.1.1")
                           .author("Cory F. <cforsstrom18@gmail.com>")
                           .about("A self hosted Alexa skill to control a network-enabled Pioneer AVR through telnet commands.")
                           .arg(Arg::with_name("HOST").required(true)
@@ -69,7 +69,7 @@ fn run() -> Result<(), Error> {
                                                             match p {
                                                                 Ok(_) => Ok(()),
                                                                 Err(e) => Err(e.to_owned())
-                                                            }                                                        
+                                                            }
                                                         }))
                           .arg(Arg::with_name("port").short("p")
                                                      .takes_value(true)
@@ -80,7 +80,7 @@ fn run() -> Result<(), Error> {
                                                             match p {
                                                                 Ok(_) => Ok(()),
                                                                 Err(e) => Err(e.to_owned())
-                                                            }                                                        
+                                                            }
                                                         }))
                           .get_matches();
     let avr_host = matches.value_of("HOST").unwrap();
